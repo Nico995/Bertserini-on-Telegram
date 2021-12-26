@@ -1,0 +1,8 @@
+dataset_path: squad_v2
+doc_stride: 128
+max_query_length: 64
+max_seq_length: 387
+model_path: rsvp-ai/bertserini-bert-base-squad
+threads: 6
+train_batch_size: 32
+val_batch_size: 1

@@ -1,0 +1,42 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "test_dataloader.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test_dataloader.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "validate",
+            "type": "python",
+            "request": "launch",
+            "program": "cli.py",
+            "console": "integratedTerminal",
+            "args": [
+                "validate",
+                "--config",
+                "~/bertserini/configs/bert_validate.yaml"
+            ],
+            "justMyCode": false
+            // python cli.py validate --config ~/bertserini/configs/bert_validate.yaml
+        },
+        {
+            "name": "predict commandline",
+            "type": "python",
+            "request": "launch",
+            "program": "bert_command_line.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--config",
+                "~/bertserini/configs/bert_validate.yaml"
+            ],
+            "justMyCode": false
+            // python cli.py validate --config ~/bertserini/configs/bert_validate.yaml
+        }
+    ]
+}

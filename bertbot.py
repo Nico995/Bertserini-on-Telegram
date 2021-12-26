@@ -61,6 +61,8 @@ def answer(update: Update, context: CallbackContext) -> int:
     question_text = update.message.text.lstrip('!').lstrip()
     logger.info(f'User {user.first_name} asked a question: {question_text}')
     context.bot.send_chat_action(update.message.chat_id, action=telegram.ChatAction.TYPING)
+    logger.info(f'I am retreiving context from Wikipedia...')
+
     answer = bert.predict(question_text)
 
     update.message.reply_text(answer[0])

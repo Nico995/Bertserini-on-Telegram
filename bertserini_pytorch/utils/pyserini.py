@@ -1,7 +1,7 @@
 
 from typing import List
 from pyserini.search import SimpleSearcher, JSimpleSearcherResult
-from bertserini_pytorch.utils.utils_squad import SquadExample
+from transformers.data.processors.squad import SquadExample
 from bertserini_pytorch.utils.base import Context, Question
 
 
@@ -70,7 +70,6 @@ def craft_squad_examples(question: Question, contexts: List[Context]) -> List[Sq
                 title="",
                 is_impossible=False,
                 answers=[],
-                language=ctx.language
             )
         )
     return examples

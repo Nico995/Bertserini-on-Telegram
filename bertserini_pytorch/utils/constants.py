@@ -26,12 +26,18 @@ task_num_labels = {
     "ax": 3,
 }
 
-loader_columns = [
-    "datasets_idx",
-    "input_ids",
-    "token_type_ids",
-    "attention_mask",
-    "start_positions",
-    "end_positions",
-    "labels",
-]
+loader_columns = {
+    "glue": [
+        "datasets_idx",
+        "input_ids",
+        "token_type_ids",
+        "attention_mask",
+        "start_positions",
+        "end_positions",
+        "labels", ],
+    "squad_v2": [
+        "input_ids",
+        "token_type_ids",
+        "attention_mask"
+    ]
+}

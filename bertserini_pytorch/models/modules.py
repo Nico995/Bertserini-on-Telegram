@@ -1,16 +1,24 @@
-from collections import defaultdict
+from bertserini_pytorch.utils.pyserini import build_searcher, craft_squad_examples, retriever
+from bertserini_pytorch.utils.io import print_ts
+from bertserini_pytorch.utils.base import Answer, Question, Context
+from transformers.data.processors.squad import SquadResult, squad_convert_examples_to_features
+from collections import defaultdict, namedtuple
 from typing import Dict, List, Tuple, Union
 from pytorch_lightning import LightningModule
 from transformers import AdamW, AutoConfig, AutoModelForQuestionAnswering, AutoTokenizer, get_linear_schedule_with_warmup
 from datetime import datetime
+from torch.utils.data import DataLoader, SequentialSampler
 import datasets
 import torch
 from transformers import BertTokenizer, BertForQuestionAnswering
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 
-from bertserini_pytorch.utils.base import Context, Question
-from bertserini_pytorch.utils.io import print_ts
-from bertserini_pytorch.utils.pyserini import build_searcher, retriever
+from transformers.data.metrics.squad_metrics import apply_no_ans_threshold, compute_predictions_logits, find_all_best_thresh, get_raw_scores, make_eval_dict, merge_eval
+
+from bertserini_pytorch.utils.utils_squad import compute_logits
+from transformers.data.metrics.squad_metrics import squad_evaluate
+from bertserini_pytorch.utils.utils_squad import tensor_to_list
+import json
 
 
 @MODEL_REGISTRY
@@ -133,97 +141,141 @@ class BERTPredictor(LightningModule):
     def __init__(self,
                  pretrained_model_name: str = 'bert-large-uncased-whole-word-masking-finetuned-squad',
                  context_size: int = 20,
-                 mu: float = 0.5):
+                 mu: float = 0.5,
+                 n_best: int = 10,
+                 score_diffs_file: str = './tmp/null_odds_.json',
+                 all_predictions_file: str = './tmp/predictions_.json',
+                 results_file: str = './tmp/results_.json'):
 
         super().__init__()
-        print_ts(f'Initializing {" ".join(pretrained_model_name.split("-"))} for Inference')
 
-        self.model = BertForQuestionAnswering.from_pretrained('bert-large-uncased-whole-word-masking-finetuned-squad')
-        self.tokenizer = BertTokenizer.from_pretrained('bert-large-uncased-whole-word-masking-finetuned-squad')
+        self.save_hyperparameters()
+
+        print_ts(f'Initializing {" ".join(self.hparams.pretrained_model_name.split("-"))} for Inference')
+
+        self.model = BertForQuestionAnswering.from_pretrained(self.hparams.pretrained_model_name).cuda()
+        self.tokenizer = BertTokenizer.from_pretrained(self.hparams.pretrained_model_name)
         self.searcher = build_searcher('enwiki-paragraphs')
 
-        self.k = context_size
-        self.mu = mu
+        self.all_results = []
 
-    def predict(self, question: str) -> Tuple[str, float]:
-        """This function predicts start and end logits of the ansewr for a question give a list of pretexts.
+    def compute_scores(examples, preds, no_answer_probs=None, no_answer_probability_threshold=1.0):
+        qas_id_to_has_answer = {example.qas_id: bool(example.answers) for example in examples}
+        has_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer]
+        no_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if not has_answer]
 
+        if no_answer_probs is None:
+            no_answer_probs = {k: 0.0 for k in preds}
 
-        Args:
-            question (str): [description]
-            pretexts (List[str]): [description]
-        """
+        exact, f1 = get_raw_scores(examples, preds)
 
-        # first we retrieve the top k paragraphs from pyserini
-        # to do so, we need to wrap our question into a Question object
-        contexts = retriever(Question(question, language='en'), self.searcher, self.k)
-        answers = []
+        exact_threshold = apply_no_ans_threshold(
+            exact, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold
+        )
+        f1_threshold = apply_no_ans_threshold(
+            f1, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold)
 
-        # ask the question once for every available context
-        for context in contexts:
+        evaluation = make_eval_dict(exact_threshold, f1_threshold)
 
-            # tokenize question and context together
-            tokens = self.tokenizer.encode_plus(question, context.text)
-            input_ids, token_type_ids = tokens['input_ids'], tokens['token_type_ids']
+        if has_answer_qids:
+            has_ans_eval = make_eval_dict(exact_threshold, f1_threshold, qid_list=has_answer_qids)
+            merge_eval(evaluation, has_ans_eval, "HasAns")
 
-            # convert ids to string-tokens, keep them to answer in Natural Language
-            tokens = self.tokenizer.convert_ids_to_tokens(input_ids)
+        if no_answer_qids:
+            no_ans_eval = make_eval_dict(exact_threshold, f1_threshold, qid_list=no_answer_qids)
+            merge_eval(evaluation, no_ans_eval, "NoAns")
 
-            # get the output of the model
-            # the model's output will be composed by
-            output = self.model(torch.tensor([input_ids]),  token_type_ids=torch.tensor([token_type_ids]))
+        if no_answer_probs:
+            find_all_best_thresh(evaluation, preds, exact, f1, no_answer_probs, qas_id_to_has_answer)
 
-            # we care about the log probabilities of the start and end of the
-            # sentence, computed for every token in the question/context
+        return evaluation
 
-            # even though argmax is not affected by the softmax function
-            # we also compute the probability distribution because we will need
-            # the scores for later
-            start_scores = torch.softmax(output.start_logits, dim=-1)
-            end_scores = torch.softmax(output.end_logits, dim=-1)
-            answer_start = torch.argmax(start_scores)
-            answer_end = torch.argmax(end_scores)
+    def get_thresholds(self):
+        try:
+            file = open(self.hparams.results_file, 'rb')
+        except FileNotFoundError:
+            print(f'Could not find file {self.hparams.results_file}. Remember to run a validation '
+                  'loop first, before doing inference')
+            exit()
+        return json.load(file)
 
-            # we only care about the answer if the start of the sentence occurs
-            # before the end. If that's not the case, we say that the model
-            # failed to answer.
-            if answer_end >= answer_start:
+    def non_gradient_step(self, batch, batch_idx, dataloader_idx=0):
+        inputs = {
+            "input_ids": batch[0],
+            "attention_mask": batch[1],
+            "token_type_ids": batch[2],
+        }
+        features = self.trainer.datamodule.features
 
-                # now we build the answer in natural language, taking into account
-                # that bert uses wordpiece tokenization to handle rare words and
-                # to keep the size of the vocabulary from exploding
+        feature_indices = batch[3]
 
-                answer = tokens[answer_start]
-                for token in tokens[answer_start+1:answer_end+1]:
+        outputs = self.model(**inputs)
 
-                    # the ## signs leads the second part of a wordpiece tokenization
-                    # if we encouter it, we just concatenate directly after the previous
-                    # token
-                    if token[0:2] == "##":
-                        answer += token[2:]
-                    # otherwise leave an empty space and insert the next token
-                    else:
-                        answer += " " + token
-            else:
-                continue
-            # in order to assess which of the obtained answers is "better than the other"
-            # we store the retreival score and the prediction scores, which we will use
-            # to rank the answers
-            bert_score = torch.max(start_scores) + torch.max(end_scores)
-            answers.append((answer, bert_score, context.score))
+        for feature_index in feature_indices:
 
-        # now that we predicted from every context we had, it's time to find out which is the
-        # best answer we got
-        best_answer = self._get_best_answer(answers)
+            eval_feature = features[feature_index.item()]
+            unique_id = int(eval_feature.unique_id)
 
-        return best_answer
+            # output = [list(output[i].detach().cpu()) for output in outputs]
+
+            start_logits = outputs['start_logits'].detach().cpu()
+            end_logits = outputs['end_logits'].detach().cpu()
+
+            result = SquadResult(unique_id, start_logits, end_logits)
+
+            self.all_results.append(result)
+
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        self.non_gradient_step(batch, batch_idx, dataloader_idx)
+
+    def on_validation_epoch_end(self):
+
+        all_predictions = compute_logits(
+            self.trainer.datamodule.examples,
+            self.trainer.datamodule.features,
+            self.all_results,
+            n_best=10,
+            max_answer_length=378,
+            do_lower_case=True,
+            null_score_diff_threshold=0.0,
+            tokenizer=self.tokenizer
+        )
+
+        predictions = {k: v[0] for k, v in all_predictions.items()}
+
+        result = squad_evaluate(self.trainer.datamodule.examples, predictions)
+
+        with open(self.hparams.results_file, "w") as f:
+            f.write(json.dumps(result, indent=4) + "\n")
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        self.non_gradient_step(batch, batch_idx, dataloader_idx)
+
+    def on_predict_epoch_end(self, results):
+
+        answers = compute_logits(
+            self.trainer.datamodule.examples,
+            self.trainer.datamodule.features,
+            self.all_results,
+            n_best=self.hparams.n_best,
+            max_answer_length=30,
+            do_lower_case=True,
+            null_score_diff_threshold=self.get_thresholds()['best_f1_thresh'],
+            tokenizer=self.tokenizer,
+            language="en")
+
+        scored_answers = zip([ctx.score for ctx in self.trainer.datamodule.contexts], answers.values())
+        scored_answers = sorted(scored_answers, key=lambda x: x[0] + x[1][1], reverse=True)
+        # scored_answers = sorted(scored_answers, key=lambda x: x[1][1], reverse=True)
+        # print(scored_answers)
+        self.answer = scored_answers[0][1][0]
 
     def _get_best_answer(self, answers: Dict[str, List[Tuple[str, float, float]]]) -> Tuple[str, float]:
         answers_scores = []
 
         for answer, bert_score, pyserini_score in answers:
             # linearly interpolate the two scores with the mu value
-            overall_score = self.mu * bert_score + (1 - self.mu) * pyserini_score
+            overall_score = self.hparams.mu * bert_score + (1 - self.hparams.mu) * pyserini_score
             answers_scores.append((answer, overall_score))
 
         # sort the answers and get the highest-scoring one

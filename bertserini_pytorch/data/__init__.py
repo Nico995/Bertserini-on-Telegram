@@ -1,1 +1,1 @@
-from .datamodules import GLUEDataModule, SQuADDataModule
+from .datamodules import GLUEDataModule, SQuADDataModule, PredictionDataModule
