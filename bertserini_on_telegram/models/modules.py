@@ -29,9 +29,9 @@ class BERTModule(LightningModule):
     """
     def __init__(self,
                  model_name: str,
+                 results_file: str,
                  mu: float = 0.5,
-                 n_best: int = 10,
-                 results_file: str = './tmp/results_.json'):
+                 n_best: int = 10,):
 
         super().__init__()
 
@@ -140,6 +140,6 @@ class BERTModule(LightningModule):
 
         # We now need to compute the aggregate scores for the answers and select the highest scoring one
         scored_answers = zip([ctx.score for ctx in self.trainer.datamodule.contexts], answers.values())
-        scored_answers = sorted(scored_answers, key=lambda x: self.mu * x[0] + (1-self.mu) * x[1][1], reverse=True)
+        scored_answers = sorted(scored_answers, key=lambda x: self.hparams.mu * x[0] + (1-self.hparams.mu) * x[1][1], reverse=True)
     
         self.answer = scored_answers[0][1][0]

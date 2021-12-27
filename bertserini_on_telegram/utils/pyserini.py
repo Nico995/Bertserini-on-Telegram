@@ -41,27 +41,41 @@ class Searcher:
             Returns:
                 List[Context]: List of Context.
         """
-     
+
         contexts = []
-        for i in range(0, len(hits)):
-            t = hits[i].raw if field == 'raw' else hits[i].contents
+
+        for hit in hits:
+            if field == 'raw':
+                text = hit.raw
+            else:
+                text = hit.content
+            
             for s in blacklist:
-                if s in t:
+                if s in text:
                     continue
-            metadata = {'raw': hits[i].raw, 'docid': hits[i].docid}
-            contexts.append(Context(t, self.language, metadata, hits[i].score))
+            
+            metadata = {'raw': text, 'docid': hit.docid}
+            contexts.append(Context(text, self.language, metadata, hit.score))
         return contexts
         
     
     def retrieve(self, question: Question, num_results: int = 20) -> List[Context]:
-        language = question.language
+        """Retrieves contexts from prebuilt index given a question.
+
+        Args:
+            question (Question): The posed question.
+            num_results (int, optional): Number of hits to consider. Defaults to 20.
+
+        Returns:
+            List[Context]: List of Context objects.
+        """
         try:
             hits = self.searcher.search(question.text, k=num_results)
         except ValueError as e:
             print("Search failure: {}, {}".format(question.text, e))
             return []
         
-        return self.hits_to_contexts(hits, language)
+        return self.hits_to_contexts(hits)
         
 
 def craft_squad_examples(question: Question, contexts: List[Context]) -> List[SquadExample]:

@@ -1,0 +1,32 @@
+data:
+  class_path: bertserini_on_telegram.data.datamodules.SQuADDataModule
+  init_args:
+    dataset_path: squad_v2
+    model_path: &bert_name rsvp-ai/bertserini-bert-base-squad
+    # model_path: &bert_name deepset/bert-base-cased-squad2
+    train_batch_size: 32
+    val_batch_size: 1
+    doc_stride: 128
+    max_query_length: 64
+    max_seq_length: 387
+    threads: 6
+    workers: 12
+
+model:
+  class_path: bertserini_on_telegram.models.modules.BERTModule
+  init_args:
+    pretrained_model_name: *bert_name
+    context_size: 20
+    mu: 0.5
+    n_best: 10
+    score_diffs_file: ./tmp/null_odds_.json
+    all_predictions_file: ./tmp/predictions_.json
+    results_file: ./tmp/results_.json
+
+trainer:
+  default_root_dir: /home/nicola/bertserini/logs/question_answering
+  max_epochs: &epochs 100
+  gpus: 1
+  strategy: dp
+  log_every_n_steps: 1
+  enable_progress_bar: True

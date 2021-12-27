@@ -1,13 +1,12 @@
-from bertserini_on_telegram.data import GLUEDataModule, PredictionDataModule
-from bertserini_on_telegram.models import BERTTrainer, BERTModule
-from bertserini_on_telegram.utils.base import Context, Question
-from bertserini_on_telegram.utils.pyserini import build_searcher, retriever
+from bertserini_on_telegram.data import PredictionDataModule
+from bertserini_on_telegram.utils.base import Question
+from bertserini_on_telegram.utils.pyserini import Searcher
 from pytorch_lightning.utilities.cli import LightningCLI
 
 if __name__ == "__main__":
 
     # searcher = build_searcher("enwiki-paragraphs")
-    searcher = build_searcher("wikipedia-dpr")
+    searcher = Searcher("wikipedia-dpr")
 
     cli = LightningCLI(run=False, save_config_callback=None)
     bert = cli.model
@@ -16,8 +15,8 @@ if __name__ == "__main__":
     while True:
         # question = input("Please input your question[use empty line to exit]:")
         question = Question(question, "en")
-        contexts = retriever(question, searcher, 20)
-        dm = PredictionDataModule(question, contexts, cli.model.hparams.pretrained_model_name)
+        contexts = searcher.retrieve(question, 20)
+        dm = PredictionDataModule(question, contexts, cli.model.hparams.model_name)
         # contexts = [Context(text=context, score=1)]
         cli.trainer.predict(bert, dm)
         # answer = bert.predict_combination(question, contexts)

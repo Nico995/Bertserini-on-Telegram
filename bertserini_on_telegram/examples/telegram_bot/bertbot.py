@@ -2,6 +2,10 @@ import logging
 from pytorch_lightning.utilities.cli import LightningCLI
 import telegram
 import yaml
+from bertserini_on_telegram.utils.base import Question
+from bertserini_on_telegram.utils.pyserini import Searcher
+from bertserini_on_telegram.data import PredictionDataModule
+
 from telegram import ReplyKeyboardRemove, Update
 from telegram.ext import (
     Updater,
@@ -12,8 +16,6 @@ from telegram.ext import (
     CallbackContext,
 )
 
-from bertserini_on_telegram.models.modules import BERTModule
-
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
@@ -21,6 +23,9 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 logger.info('Welcome, logging has just started!')
+
+# build the context_retreiving object
+searcher = Searcher("wikipedia-dpr")
 
 # build the predictor object
 logger.info('Loading BERT Pretrained')
@@ -55,18 +60,29 @@ def cancel(update: Update, context: CallbackContext) -> int:
 
 def answer(update: Update, context: CallbackContext) -> int:
     """Cancels and ends the conversation."""
-    # update.message.reply_text(f"Soon I'll be able to answer questions (powered by BERT)\n{update.message.text}")
-    user = update.message.from_user
-
-    question_text = update.message.text.lstrip('!').lstrip()
-    logger.info(f'User {user.first_name} asked a question: {question_text}')
+    
+    # Bot is typing
     context.bot.send_chat_action(update.message.chat_id, action=telegram.ChatAction.TYPING)
+    user = update.message.from_user
+    
+    # Create question object
+    question_text = update.message.text.lstrip('!').lstrip()
+    question = Question(question_text, "en")    
+    logger.info(f'User {user.first_name} asked a question: {question_text}')
+
+    # Retrieve contexts
     logger.info(f'I am retreiving context from Wikipedia...')
+    contexts = searcher.retrieve(question, 20)
+    
+    # Create datamodule
+    dm = PredictionDataModule(question, contexts, cli.model.hparams.model_name)
 
-    answer = bert.predict(question_text)
-
-    update.message.reply_text(answer[0])
-    logger.info(f'BERT found an answer to the question! "{answer[0]}"')
+    # Predict answer
+    cli.trainer.predict(bert, dm)
+    answer = bert.answer
+    
+    update.message.reply_text(answer)
+    logger.info(f'BERT found an answer to the question! "{answer}"')
 
     return ANSWER
 
@@ -75,7 +91,7 @@ def main() -> None:
     logger.info('Starting BERTBot')
     """Run the bot."""
     # read the telegram token from the config file (very secret wow)
-    with open('/home/nicola/bertserini/configs/telegram_token_id.yaml', 'r') as f:
+    with open('./telegram_token_id.yaml', 'r') as f:
         token = yaml.safe_load(f)['token']
 
     # create the Updater and pass it your bot's token.
