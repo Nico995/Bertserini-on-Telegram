@@ -25,5 +25,7 @@ setuptools.setup(
         "pytorch-lightning",
         "transformers",
         "pyserini",
+        "telegram",
+        
     ]
 )
