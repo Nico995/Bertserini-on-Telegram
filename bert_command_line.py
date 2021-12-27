@@ -1,5 +1,5 @@
 from bertserini_pytorch.data import GLUEDataModule, PredictionDataModule
-from bertserini_pytorch.models import BERTTrainer, BERTPredictor
+from bertserini_pytorch.models import BERTTrainer, BERTModule
 from bertserini_pytorch.utils.base import Context, Question
 from bertserini_pytorch.utils.pyserini import build_searcher, retriever
 from pytorch_lightning.utilities.cli import LightningCLI

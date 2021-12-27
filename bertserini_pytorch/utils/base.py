@@ -9,14 +9,12 @@ TextType = Union['Question', 'Context', 'Answer']
 
 class Question:
     """
-    Class representing a question.
-    A question contains the question text itself and potentially other metadata.
-    Parameters
-    ----------
-    text : str
-        The question text.
-    id : Optional[str]
-        The question id.
+    A wrapper around a question text. Can contain other metadata.
+    
+    Args:
+        text (str): The question text.
+        id (Optional[str]): The question id. Defaults to None.
+        language (str): The language of the posed question. Defaults to "en".
     """
     def __init__(self, text: str, id: Optional[str] = None, language: str = "en"):
         self.text = text
@@ -26,19 +24,15 @@ class Question:
 
 class Context:
     """
-    Class representing a Context to find answer from.
-    A text is unspecified with respect to it length; in principle, it
-    could be a full-length document, a paragraph-sized passage, or
+    A wrapper around a context text.
+    The text is unspecified with respect to it length; in principle, it could be a full-length document, a paragraph-sized passage, or
     even a short phrase.
-    Parameters
-    ----------
-    text : str
-        The context that contains potential answer.
-    metadata : Mapping[str, Any]
-        Additional metadata and other annotations.
-    score : Optional[float]
-        The score of the context. For example, the score might be the BM25 score
-        from an initial retrieval stage.
+
+    Args:
+        text (str): The context that contains potential answer.
+        language (str): The language of the posed question. Defaults to "en".
+        metadata (Mapping[str, Any]): Additional metadata and other annotations.
+        score (Optional[float]): The score of the context. For example, the score might be the BM25 score from an initial retrieval stage. Defaults to None.
     """
 
     def __init__(self,
@@ -46,69 +40,56 @@ class Context:
                  language: str = "en",
                  metadata: Mapping[str, Any] = None,
                  score: Optional[float] = 0):
+
         self.text = text
         self.language = language
+
         if metadata is None:
             metadata = dict()
+
         self.metadata = metadata
         self.score = score
 
 
 class Answer:
-    """
-    Class representing an answer.
-    A answer contains the answer text itself and potentially other metadata.
-    Parameters
-    ----------
-    text : str
-        The answer text.
-    metadata : Mapping[str, Any]
-        Additional metadata and other annotations.
-    score : Optional[float]
-        The score of the answer.
-    ctx_score : Optional[float]
-        The context score of the answer.
-    total_score : Optional[float]
-        The aggregated score of answer score and ctx_score
+    """    
+    A wrapper around a question text. Can contain other metadata.
+
+    Args:
+    
+        text (str): The answer text.
+        language (str): The language of the posed question. Defaults to "en".
+        metadata (Mapping[str, Any]): Additional metadata and other annotations.
+        ans_score (Optional[float]): The score of the answer.
+        ctx_score (Optional[float]): The context score of the answer.
+        total_score (Optional[float]): The aggregated score of answer score and ctx_score.
     """
     def __init__(self,
                  text: str,
                  language: str = "en",
                  metadata: Mapping[str, Any] = None,
-                 score: Optional[float] = 0,
+                 ans_score: Optional[float] = 0,
                  ctx_score: Optional[float] = 0,
                  total_score: Optional[float] = 0):
+
         self.text = text
         self.language = language
         if metadata is None:
             metadata = dict()
         self.metadata = metadata
-        self.score = score
+        self.ans_score = ans_score
         self.ctx_score = ctx_score
         self.total_score = total_score
 
-    def aggregate_score(self, weight):
-        self.total_score = weight*self.score + (1-weight)*self.ctx_score
-
-
-class Reader:
-    """
-    Class representing a Reader.
-    A Reader takes a list Contexts and returns a list of Answer.
-    """
-    @abc.abstractmethod
-    def predict(self, query: Question, texts: List[Context]) -> List[Answer]:
+    def aggregate_score(self, weight: float) -> float:
         """
-            Find answers from a list of Contexts with respect to a question.
-            Parameters
-            ----------
-            query : Question
-                The question.
-            texts : List[Context]
-                The list of context.
-            Returns
-            -------
-            List[Answer]
-                Predicted list of answer.
+        Computes the aggregate score between ans_score and ctx_score as a linear interpolation given a weight.
+
+        Args:
+            weight (float): The weight to assign to ans_score and ctx_score.
+        
+        Returns:
+            float: The aggregated score.
         """
-        pass
+        
+        self.total_score = weight*self.ans_score + (1-weight)*self.ctx_score

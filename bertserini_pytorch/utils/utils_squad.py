@@ -14,10 +14,11 @@ import math
 import re
 import string
 import torch
-from typing import List
+from typing import List, Mapping, Tuple
 
 from transformers import BertTokenizer
 from transformers.data.metrics.squad_metrics import squad_evaluate, get_final_text
+from transformers.data.processors.squad import SquadExample, SquadFeatures, SquadResult
 
 
 # from transformers.tokenization_bert import BasicTokenizer
@@ -25,43 +26,66 @@ from transformers.data.metrics.squad_metrics import squad_evaluate, get_final_te
 logger = logging.getLogger(__name__)
 
 
-def tensor_to_list(tensor):
+def tensor_to_list(tensor: torch.Tensor) -> List[float]:
+    """Converts a cuda tensor to a list (used to convert logits in a more favorable format).
+
+    Args:
+        tensor (torch.tensor): A gpu tensor to be converted.
+    
+    Returns:
+        List[float]: The converted tensor.
+        
+    """
     return tensor.detach().cpu().tolist()[0]
 
 
 def get_best_indices(logits: torch.Tensor, n_best: int) -> List[float]:
-    """Return the top n_best logits
+    """Return the top n_best logits indices.
 
     Args:
-        logits (torch.tensor): Tensor containing logits
-        n_best ([type]): number of top values to be returned
+        logits (torch.tensor): All the logits.
+        n_best ([type]): Number of top values to be returned.
 
     Returns:
-        [type]: [description]
+        List[float]: A list containing the indices of the top n_best logits.
+        
     """
     logits = sorted(enumerate(logits), key=lambda x: -x[1])
     return [index for index, _ in logits[:n_best]]
 
-    # return [index for index, _ in sorted(enumerate(list(logits[0])), key=lambda x: -x[1])[:n_best]]
 
 
-def compute_logits(
-    all_examples,
-    all_features,
-    all_results,
-    n_best,
-    max_answer_length,
-    do_lower_case,
-    null_score_diff_threshold,
+def compute_predictions(
+    all_examples: List[SquadExample],
+    all_features: List[SquadFeatures],
+    all_results: List[SquadResult],
+    n_best: int,
+    max_answer_length: int,
+    do_lower_case: bool,
+    null_score_diff_threshold: float,
     tokenizer: BertTokenizer,
     language: str = "en",
     fancy_answer: bool = False
-):
+) -> Mapping[str, Tuple[str, float]]:
+    
+    """Compute answers from predicted logits.
 
-    # build dict to index features through example_index
-    # we append to a list because for some reason the features
-    # corresponding to a certain example could be split (?)
-    # all features are essentially the tokenization of all trainig/inference data
+    Args:
+        all_examples (List[SquadExample]): The list of all SquadExample. Extracted by craft_squad_examples.
+        all_features (List[SquadFeatures]): The list of all SquadFeatures. Extracted by squad_convert_examples_to_features.
+        all_results (List[SquadResult]): The list of SquadResult. Extracted by the NLP model and wrapped by a SquadResult object.
+        n_best (int): Number of top results to consider.
+        max_answer_length (int): Maximum length of any answer.
+        do_lower_case (bool): Whether to lowercase input when tokenizing.
+        null_score_diff_threshold (float): The threshold used to determine whether an answer should be Null or not.
+        tokenizer (BertTokenizer): The tokenizer to use when converting the answer back to Natural Language.
+        language (str, optional): The language to use for the answers. Defaults to "en".
+        fancy_answer (bool, optional): Whether to use get_final_text to obtain a clean answer (takes a lot of time). Defaults to False.
+
+    Returns:
+        Mapping[str, Tuple[str, float]] [description]: A mapping between the unique id of the question and a tuple containing the text and the ans_score
+        
+    """
     example_index_to_features = collections.defaultdict(list)
     for feature in all_features:
         example_index_to_features[feature.example_index].append(feature)
@@ -178,7 +202,7 @@ def compute_logits(
         best_predictions = []
 
         # looping in descending score order over the preliminary predictions found for a specific feature
-        # prune the preliminary predictions to a top n_best list
+        # prune the preliminary predictions to a top n_best list and convert to text
         for pred in prelim_predictions:
             if len(best_predictions) >= n_best:
                 break
@@ -187,7 +211,7 @@ def compute_logits(
 
             # retain only non-null predictions
             if pred.start_index > 0:
-                #
+                
                 norm_tokens = feature.tokens[pred.start_index:pred.end_index+1]
                 norm_string_tokens = tokenizer.convert_tokens_to_string(norm_tokens)
 

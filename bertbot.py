@@ -12,7 +12,7 @@ from telegram.ext import (
     CallbackContext,
 )
 
-from bertserini_pytorch.models.modules import BERTPredictor
+from bertserini_pytorch.models.modules import BERTModule
 
 # Enable logging
 logging.basicConfig(
