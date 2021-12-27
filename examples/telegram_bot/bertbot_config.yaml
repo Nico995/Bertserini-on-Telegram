@@ -2,12 +2,12 @@ model:
   class_path: bertserini_on_telegram.models.modules.BERTModule
   init_args:
     model_name: bert-large-uncased-whole-word-masking-finetuned-squad
-    results_file: /home/nicola/bertserini/results_.json
+    results_file: ../validation/tmp/results_.json
     mu: 0.4
     n_best: 30
 
 trainer:
-  default_root_dir: ~/bertserini/logs/question_answering
+  default_root_dir: ./logs
   max_epochs: &epochs 100
   gpus: 1
   strategy: dp

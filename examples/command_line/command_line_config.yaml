@@ -7,7 +7,7 @@ model:
     n_best: 30
 
 trainer:
-  default_root_dir: ~/bertserini/logs/question_answering
+  default_root_dir: ./logs
   max_epochs: &epochs 100
   gpus: 1
   strategy: dp

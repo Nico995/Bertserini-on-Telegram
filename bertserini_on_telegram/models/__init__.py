@@ -1,1 +1,1 @@
-from .modules import BERTTrainer, BERTModule
+from .modules import BERTModule
