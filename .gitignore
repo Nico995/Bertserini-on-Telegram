@@ -425,3 +425,5 @@ FodyWeavers.xsd
 
 tmp/
 *.ipynb
+workspace.code-workspace
+.vscode/
