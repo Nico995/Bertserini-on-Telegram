@@ -423,6 +423,7 @@ FodyWeavers.xsd
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudio,visualstudiocode,jupyternotebooks
 
+telegram_token_id.yaml
 tmp/
 *.ipynb
 workspace.code-workspace
