@@ -1,3 +1,3 @@
 # Bertserini-on-Telegram
 
-This is an implementation of the bertserini pipeline, wrapped around a telegram bot, for a nice chatbot-like experience. enjoy :)
+Bertserini-on-Telegram is a pytorch Bertserini implementation with a small utility to plug it in a Telegram bot.

@@ -10,13 +10,13 @@ from transformers import BertTokenizer
 
 from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
 from transformers.data.processors.squad import SquadV2Processor
-from bertserini_pytorch.utils import constants
+from bertserini_on_telegram.utils import constants
 from transformers import squad_convert_examples_to_features
 import requests
-from bertserini_pytorch.utils.base import Context, Question
+from bertserini_on_telegram.utils.base import Context, Question
 from datasets import load_dataset
 
-from bertserini_pytorch.utils.pyserini import craft_squad_examples
+from bertserini_on_telegram.utils.pyserini import craft_squad_examples
 
 
 @DATAMODULE_REGISTRY

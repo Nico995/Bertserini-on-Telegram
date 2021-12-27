@@ -1,7 +1,7 @@
-from bertserini_pytorch.data import GLUEDataModule, PredictionDataModule
-from bertserini_pytorch.models import BERTTrainer, BERTModule
-from bertserini_pytorch.utils.base import Context, Question
-from bertserini_pytorch.utils.pyserini import build_searcher, retriever
+from bertserini_on_telegram.data import GLUEDataModule, PredictionDataModule
+from bertserini_on_telegram.models import BERTTrainer, BERTModule
+from bertserini_on_telegram.utils.base import Context, Question
+from bertserini_on_telegram.utils.pyserini import build_searcher, retriever
 from pytorch_lightning.utilities.cli import LightningCLI
 
 if __name__ == "__main__":

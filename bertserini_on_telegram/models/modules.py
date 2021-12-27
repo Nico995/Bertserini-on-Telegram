@@ -1,4 +1,4 @@
-from bertserini_pytorch.utils.io import print_ts
+from bertserini_on_telegram.utils.io import print_ts
 from transformers.data.processors.squad import SquadResult
 from typing import Dict, List, Tuple
 from pytorch_lightning import LightningModule
@@ -7,7 +7,7 @@ from pytorch_lightning.utilities.cli import MODEL_REGISTRY
 
 from transformers.data.metrics.squad_metrics import apply_no_ans_threshold, find_all_best_thresh, get_raw_scores, make_eval_dict, merge_eval
 
-from bertserini_pytorch.utils.utils_squad import compute_predictions
+from bertserini_on_telegram.utils.utils_squad import compute_predictions
 from transformers.data.metrics.squad_metrics import squad_evaluate
 import json
 

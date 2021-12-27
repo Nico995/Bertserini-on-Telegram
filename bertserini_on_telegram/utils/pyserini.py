@@ -2,7 +2,7 @@
 from typing import List
 from pyserini.search import SimpleSearcher, JSimpleSearcherResult
 from transformers.data.processors.squad import SquadExample
-from bertserini_pytorch.utils.base import Context, Question
+from bertserini_on_telegram.utils.base import Context, Question
 
 
 class Searcher:

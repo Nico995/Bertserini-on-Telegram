@@ -1,5 +1,5 @@
-from bertserini_pytorch.data import GLUEDataModule
-from bertserini_pytorch.models import BERTTrainer
+from bertserini_on_telegram.data import GLUEDataModule
+from bertserini_on_telegram.models import BERTTrainer
 
 from pytorch_lightning.utilities.cli import LightningCLI
 
