@@ -427,6 +427,7 @@ tmp/
 *.ipynb
 workspace.code-workspace
 .vscode/
+lightning_
 
 # Distribution / packaging
 bin/
