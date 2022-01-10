@@ -58,6 +58,18 @@ class BERTModule(LightningModule):
                   'loop first, before doing inference')
             exit()
         return json.load(file)['best_f1_thresh']
+    
+    def gradient_step(self, batch, batch_idx):
+        inputs = {
+            "input_ids": batch[0],
+            "attention_mask": batch[1],
+            "token_type_ids": batch[2],
+        }
+
+        outputs = self.model(**inputs)
+        loss = outputs['loss']
+        return loss
+
 
     def non_gradient_step(self, batch, batch_idx, dataloader_idx=0):
         """The common step for non_gradient loops (validation/test/inference)
