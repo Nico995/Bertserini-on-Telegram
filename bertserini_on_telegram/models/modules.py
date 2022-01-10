@@ -95,7 +95,8 @@ class BERTModule(LightningModule):
         """This hook is called after the last validation step. This is convenient if we want to gather the results of the validation.
         """
 
-        all_predictions = compute_predictions(
+        # all_predictions = compute_predictions(
+        predictions = compute_predictions(
             self.trainer.datamodule.examples,
             self.trainer.datamodule.features,
             self.all_results,
@@ -107,7 +108,7 @@ class BERTModule(LightningModule):
         )
 
         # Remove the scores from the predictions, only retain texts
-        predictions = {k: v[0] for k, v in all_predictions.items()}
+        predictions = {k: v[0] for k, v in predictions.items()}
 
         # This is mainly done to retrieve the best_f1_threshold
         result = squad_evaluate(self.trainer.datamodule.examples, predictions)

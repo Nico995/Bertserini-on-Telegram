@@ -243,9 +243,15 @@ def compute_predictions(
             best_predictions.append(BestPrediction(
                 text="", start_logit=null_prediction.start_logit, end_logit=null_prediction.end_logit))
 
+
+        # For some reason, the official code does this checks
         if len(best_predictions) == 1:
             best_predictions.append(BestPrediction(
                 text="", start_logit=0, end_logit=0))
+        #
+        if len(best_predictions) == 0:
+            best_predictions.append(BestPrediction(
+                text="empty", start_logit=0, end_logit=0))
 
         # save the best non-null entry
         best_non_null_entry = None
@@ -264,11 +270,13 @@ def compute_predictions(
         # we predict a null answer
         if score_diff > null_score_diff_threshold:
             all_predictions[example.qas_id] = ("", 0)
+            # all_predictions[example.qas_id] = ""
 
         # otherwise we predict our best-non_null answer
         else:
             all_predictions[example.qas_id] = (
                 best_non_null_entry.text,
                 float(best_non_null_entry.start_logit + best_non_null_entry.end_logit))
+            # all_predictions[example.qas_id] = best_non_null_entry.text
 
     return all_predictions

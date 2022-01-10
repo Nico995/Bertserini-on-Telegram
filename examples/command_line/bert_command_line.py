@@ -5,8 +5,8 @@ from pytorch_lightning.utilities.cli import LightningCLI
 
 if __name__ == "__main__":
 
-    # searcher = build_searcher("enwiki-paragraphs")
-    searcher = Searcher("wikipedia-dpr")
+    searcher = Searcher("enwiki-paragraphs")
+    # searcher = Searcher("wikipedia-dpr")
 
     cli = LightningCLI(run=False, save_config_callback=None)
     bert = cli.model
