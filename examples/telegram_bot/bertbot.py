@@ -7,6 +7,7 @@ from bertserini_on_telegram.utils.pyserini import Searcher
 from bertserini_on_telegram.data import PredictionDataModule
 
 from telegram import ReplyKeyboardRemove, Update
+from bertserini_on_telegram.utils.translate import AutoTranslator
 from telegram.ext import (
     Updater,
     CommandHandler,
@@ -25,11 +26,14 @@ logger = logging.getLogger(__name__)
 logger.info('Welcome, logging has just started!')
 
 # build the context_retreiving object
-searcher = Searcher("wikipedia-dpr")
+searcher = Searcher("enwiki-paragraphs")
+
+# build the auto translator object
+at = AutoTranslator()
 
 # build the predictor object
 logger.info('Loading BERT Pretrained')
-cli = LightningCLI(run=False)
+cli = LightningCLI(run=False, save_config_callback=None, save_config_overwrite=True)
 bert = cli.model
 
 ANSWER = range(1)
@@ -67,6 +71,16 @@ def answer(update: Update, context: CallbackContext) -> int:
     
     # Create question object
     question_text = update.message.text.lstrip('!').lstrip()
+    question_text, langs = at.translate(question_text, src_lang=None, trg_lang='en_XX')
+
+    if not question_text:
+        update.message.reply_text(f"Sorry, {langs[0]} is not supported by Mbart50 :(")
+        return
+
+    logger.info(f'BERT detected the language: {langs[0]}')
+    print('BERT translated the question: ', question_text)
+
+
     question = Question(question_text, "en")    
     logger.info(f'User {user.first_name} asked a question: {question_text}')
 
@@ -80,7 +94,8 @@ def answer(update: Update, context: CallbackContext) -> int:
     # Predict answer
     cli.trainer.predict(bert, dm)
     answer = bert.answer
-    
+    answer, _ = at.translate(answer, src_lang='en_XX', trg_lang=langs[0])
+
     update.message.reply_text(answer)
     logger.info(f'BERT found an answer to the question! "{answer}"')
 
