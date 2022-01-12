@@ -27,7 +27,7 @@ class PredictionDataModule(LightningDataModule):
 
     This particular DataModule is used at inference time, when we need to predict based on multiple question-context pairs
     of type (q1, c1), ..., (q1, cn), where c1, ..., c2 come from a pyserini search.
-
+    
     Args:
         question (Question): The Question that the user asked.
         contexts (List[Context]): The list of retreived Context objects to use as contexts for the answer.
@@ -38,7 +38,7 @@ class PredictionDataModule(LightningDataModule):
         self,
         question: Question,
         contexts: List[Context],
-        model_name: str
+        model_name: str,
     ):
         super().__init__()
 
