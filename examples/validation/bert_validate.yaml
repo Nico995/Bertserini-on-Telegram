@@ -2,7 +2,7 @@ data:
   class_path: bertserini_on_telegram.data.datamodules.SQuADDataModule
   init_args:
     # model_name: &bert_name rsvp-ai/bertserini-bert-base-squad
-    model_name: &bert_name deepset/bert-base-cased-squad2
+    model_name: &bert_name twmkn9/bert-base-uncased-squad2
 
     train_batch_size: 32
     val_batch_size: 1

@@ -276,7 +276,6 @@ def compute_predictions(
 
         # otherwise we predict a null answer
         else:
-
             all_predictions[example.qas_id].append({
                 'answer': "", 
                 'bert_score': 0

@@ -131,15 +131,16 @@ class BERTModule(LightningModule):
                     (1 - self.hparams.mu) * predictions[qid][ctxid]['bert_score'] + \
                     (self.hparams.mu) * predictions[qid][ctxid]['pyserini_score']
 
-            # sort answers for the different contexts by the total score
-            predictions[qid] = sorted(predictions[qid], key=lambda x: -x['total_score'])
-            # only retain the best scoring answer
-            predictions[qid] = predictions[qid][0]
+        # sort answers for the different contexts by the total score
+        # & transform prediction to feed them to squad_evaluate
+        predictions = {k: sorted(v, key=lambda x: -x['total_score'])[0]['answer'] for k, v in predictions.items()}
+        # only retain the best scoring answer
+        # predictions[qid] = predictions[qid][0]
         
-        # transform prediction to feed them to squad_evaluate
-        predictions = {k: v['answer'] for k, v in predictions.items()}
+        # predictions = {k: v['answer'] for k, v in predictions.items()}
 
         # This is mainly done to retrieve the best_f1_threshold
+        answers = [e.answer_text for e in self.trainer.datamodule.new_examples]
         result = squad_evaluate(self.trainer.datamodule.examples, predictions)
         pprint(result)
 
