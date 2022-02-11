@@ -266,20 +266,21 @@ def compute_predictions(
         score_diff = (best_non_null_entry.start_logit + best_non_null_entry.end_logit) - null_score
 
         # if the score difference is below the threshold,
-        # we predict a null answer
+        # we predict our best-non_null answer
         if score_diff > null_score_diff_threshold:
-            all_predictions[example.qas_id].append({
-                'answer': "", 
-                'bert_score': 0
-            })
-            # all_predictions[example.qas_id] = ""
-
-        # otherwise we predict our best-non_null answer
-        else:
             all_predictions[example.qas_id].append({
                 'answer': best_non_null_entry.text, 
                 'bert_score': float(best_non_null_entry.start_logit + best_non_null_entry.end_logit)
             })
             # all_predictions[example.qas_id] = best_non_null_entry.text
+
+        # otherwise we predict a null answer
+        else:
+
+            all_predictions[example.qas_id].append({
+                'answer': "", 
+                'bert_score': 0
+            })
+            # all_predictions[example.qas_id] = ""
 
     return all_predictions
