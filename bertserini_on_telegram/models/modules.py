@@ -10,7 +10,7 @@ from transformers.data.metrics.squad_metrics import apply_no_ans_threshold, find
 from bertserini_on_telegram.utils.utils_squad import compute_predictions
 from transformers.data.metrics.squad_metrics import squad_evaluate
 import json
-
+from pprint import pprint
 
 @MODEL_REGISTRY
 class BERTModule(LightningModule):
@@ -81,7 +81,7 @@ class BERTModule(LightningModule):
             "token_type_ids": batch[2],
         }
         features = self.trainer.datamodule.features
-
+        
         feature_indices = batch[3]
 
         outputs = self.model(**inputs)
@@ -107,9 +107,8 @@ class BERTModule(LightningModule):
         """This hook is called after the last validation step. This is convenient if we want to gather the results of the validation.
         """
 
-        # all_predictions = compute_predictions(
         predictions = compute_predictions(
-            self.trainer.datamodule.examples,
+            self.trainer.datamodule.new_examples,
             self.trainer.datamodule.features,
             self.all_results,
             n_best=10,
@@ -119,16 +118,36 @@ class BERTModule(LightningModule):
             tokenizer=self.tokenizer
         )
 
-        # Remove the scores from the predictions, only retain texts
-        predictions = {k: v[0] for k, v in predictions.items()}
+        #aggregate scores with pyserini
+        
+        # iterate over all the questions 
+        for i, qid in enumerate(predictions.keys()):
+            # iterate over all the contexts for a give question
+            for ctxid, _ in enumerate(predictions[qid]):
+                # copy pyserini score from datamodule class
+                predictions[qid][ctxid]['pyserini_score'] = self.trainer.datamodule.pyserini_scores[i][ctxid]
+                # aggregate bert score with pyserini score with parameter mu
+                predictions[qid][ctxid]['total_score'] = \
+                    (1 - self.hparams.mu) * predictions[qid][ctxid]['bert_score'] + \
+                    (self.hparams.mu) * predictions[qid][ctxid]['pyserini_score']
+
+            # sort answers for the different contexts by the total score
+            predictions[qid] = sorted(predictions[qid], key=lambda x: -x['total_score'])
+            # only retain the best scoring answer
+            predictions[qid] = predictions[qid][0]
+        
+        # transform prediction to feed them to squad_evaluate
+        predictions = {k: v['answer'] for k, v in predictions.items()}
 
         # This is mainly done to retrieve the best_f1_threshold
         result = squad_evaluate(self.trainer.datamodule.examples, predictions)
-        
+        pprint(result)
+
         # Save the results to filesystem, we will need the best_f1_thresh later at 
         # inference time to act as the threshold for predicting the null answer
         with open(self.hparams.results_file, "w") as f:
             f.write(json.dumps(result, indent=4) + "\n")
+        print(f'results saved at {self.hparams.results_file}')
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         """The prediction step

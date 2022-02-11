@@ -14,7 +14,7 @@ import math
 import re
 import string
 import torch
-from typing import List, Mapping, Tuple
+from typing import DefaultDict, List, Mapping, Tuple
 
 from transformers import BertTokenizer
 from transformers.data.metrics.squad_metrics import squad_evaluate, get_final_text
@@ -101,7 +101,7 @@ def compute_predictions(
     )
 
     # build variables to store predictions
-    all_predictions = collections.OrderedDict()
+    all_predictions = DefaultDict(lambda: [])
 
     # loop over all the examples (which are SquadExamples object directly from get_dev_samples)
     # all_examples is essentially all the data used for train/inference
@@ -243,7 +243,6 @@ def compute_predictions(
             best_predictions.append(BestPrediction(
                 text="", start_logit=null_prediction.start_logit, end_logit=null_prediction.end_logit))
 
-
         # For some reason, the official code does this checks
         if len(best_predictions) == 1:
             best_predictions.append(BestPrediction(
@@ -264,19 +263,23 @@ def compute_predictions(
                 break
 
         # compute the score diff as the difference between the null_score and the best-non_null score
-        score_diff = null_score - (best_non_null_entry.start_logit + best_non_null_entry.end_logit)
+        score_diff = (best_non_null_entry.start_logit + best_non_null_entry.end_logit) - null_score
 
         # if the score difference is below the threshold,
         # we predict a null answer
         if score_diff > null_score_diff_threshold:
-            all_predictions[example.qas_id] = ("", 0)
+            all_predictions[example.qas_id].append({
+                'answer': "", 
+                'bert_score': 0
+            })
             # all_predictions[example.qas_id] = ""
 
         # otherwise we predict our best-non_null answer
         else:
-            all_predictions[example.qas_id] = (
-                best_non_null_entry.text,
-                float(best_non_null_entry.start_logit + best_non_null_entry.end_logit))
+            all_predictions[example.qas_id].append({
+                'answer': best_non_null_entry.text, 
+                'bert_score': float(best_non_null_entry.start_logit + best_non_null_entry.end_logit)
+            })
             # all_predictions[example.qas_id] = best_non_null_entry.text
 
     return all_predictions

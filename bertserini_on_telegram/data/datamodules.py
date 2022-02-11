@@ -1,3 +1,4 @@
+from collections import defaultdict
 import os
 from re import S
 from typing import List
@@ -7,6 +8,7 @@ from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SequentialSampler
 from transformers import BertTokenizer
+from bertserini_on_telegram.utils.pyserini import Searcher
 
 from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
 from transformers.data.processors.squad import SquadV2Processor
@@ -106,7 +108,7 @@ class SQuADDataModule(LightningDataModule):
 
         # avoids a huge list of self.var_name = var_name
         self.save_hyperparameters()
-        
+        self.searcher = Searcher("enwiki-paragraphs")
         self.tokenizer = BertTokenizer.from_pretrained(self.hparams.model_name)
 
     def prepare_data(self):
@@ -133,13 +135,29 @@ class SQuADDataModule(LightningDataModule):
             
         """
         if stage is None or stage == "fit":
-            examples = self.processor.get_train_examples("./tmp/squad/")
+            examples = self.processor.get_train_examples("./tmp/squad/")[:50]
         elif stage == "validate":
-            examples = self.processor.get_dev_examples("./tmp/squad/")
+            examples = self.processor.get_dev_examples("./tmp/squad/")[:50]
 
-        # Convert the dataset of SQuAD objects to features ready to be fed to a model
+        # delete the original squad context and insert 1 entry for each bertserini retrieved context
+        new_examples = []
+        pyserini_scores = defaultdict(lambda: [])
+        # Keep track of pyserini scores for all contexts
+        for i, example in enumerate(examples):
+            question = Question(example.question_text, "en")
+            contexts = self.searcher.retrieve(question, 3)
+            contexts_examples = craft_squad_examples(question, contexts)
+            for j, ctx in enumerate(contexts_examples):
+                ctx.qas_id = example.qas_id
+                pyserini_scores[i].append(contexts[j].score)
+
+            new_examples.extend(contexts_examples)
+            print(f"\rc: {i}", end='\t')
+                
+
+        # Returns tokenized questions and contexts
         features, dataset = squad_convert_examples_to_features(
-            examples=examples,
+            examples=new_examples,
             tokenizer=self.tokenizer,
             max_seq_length=self.hparams.max_seq_length,
             doc_stride=self.hparams.doc_stride,
@@ -152,7 +170,9 @@ class SQuADDataModule(LightningDataModule):
         # these references are needed to compute statistics over the dataset
         self.dataset = dataset
         self.examples = examples
+        self.new_examples = new_examples
         self.features = features
+        self.pyserini_scores = pyserini_scores
 
     def val_dataloader(self):
         eval_sampler = SequentialSampler(self.dataset)
