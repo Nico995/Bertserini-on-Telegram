@@ -14,12 +14,13 @@ import math
 import re
 import string
 import torch
-from typing import DefaultDict, List, Mapping, Tuple
+from typing import DefaultDict, Dict, List, Mapping, Tuple, Union
+import numpy as np
 
 from transformers import BertTokenizer
 from transformers.data.metrics.squad_metrics import squad_evaluate, get_final_text
 from transformers.data.processors.squad import SquadExample, SquadFeatures, SquadResult
-
+from transformers.data.metrics.squad_metrics import normalize_answer
 
 # from transformers.tokenization_bert import BasicTokenizer
 
@@ -110,169 +111,64 @@ def compute_predictions(
         # get features for the current example
         features = example_index_to_features[example_index]
 
-        prelim_predictions = []
-        # keep track of the minimum score of null start+end of position 0
-        null_score = 1000000
-        null_prediction = None
+        # this is an oversimplification that has to be addressed
+        feature = features[0]
 
-        # loop over the features for the given example, in some edge cases, the features are split
-        # in that case, just repeat the process for the two splits, the loop is designed so that
-        # the best result among the different splits will be retained
-        # for ease of the mind, you can reason like this loop doesnt exist :)
-        for (feature_index, feature) in enumerate(features):
+        result = unique_id_to_result[feature.unique_id]
 
-            result = unique_id_to_result[feature.unique_id]
+        # get the logits and change it into a more favorable format
+        start_logits = tensor_to_list(result.start_logits)
+        end_logits = tensor_to_list(result.end_logits)
 
-            # get the logits and change it into a more favorable format
-            start_logits = tensor_to_list(result.start_logits)
-            end_logits = tensor_to_list(result.end_logits)
+        start_index = get_best_indices(start_logits, n_best=1)[0]
 
-            # this indices refer to the position of the logits with respect to the example span
-            # example span = "[SEP]<question>[CLS]<context>[SEP]"
-            start_indices = get_best_indices(start_logits, n_best)
-            end_indices = get_best_indices(end_logits, n_best)
+        if start_index == 0:
+            # if start index is 0, then we will predict a null answer (end index also 0)
+            end_index = 0
+        else:
+            # if start index is different than 0, we want the best end index that comes after the start
+            end_index = get_best_indices(end_logits[start_index+1:], n_best=1)[0] + start_index
 
-            # Get the score of the null answer (a null answer starts and ends on the [CLS] token)
-            # the cls token is the first token of the answer
-            feature_null_score = start_logits[0] + end_logits[0]
+        # Get the score of the null answer (a null answer starts and ends on the [CLS] token)
+        # the cls token is the first token of the answer
+        null_score = start_logits[0] + end_logits[0]
 
-            # check shape of logits
-
-            # save the lowest null score of the current example
-            if feature_null_score < null_score:
-                null_score = feature_null_score
-                null_prediction = PrelimPrediction(feature_index, 0, 0, start_logits[0], end_logits[0])
-
-            # we can now try to find an answer by trying all the different combination of the top k logits
-            # this is the robust alternative to the naive implementation with argmax(logit)
-            for start_index in start_indices:
-                for end_index in end_indices:
-                    # we need to prune our choices, discard invalid answers according to
-                    # the following criteria
-
-                    # answer is nonsensical -> discard
-                    # we run this condition first so that we now can assume the relative position of starat - end
-                    if end_index < start_index:
-                        continue
-                    # if the start token index is greater than the token list length -> discard
-                    if start_index >= len(feature.tokens):
-                        continue
-                    # if stard token index is not in the token_to_orig map -> discard
-                    if start_index not in feature.token_to_orig_map:
-                        continue
-                    # if stard token index is not in the token_to_orig map -> discard
-                    if end_index not in feature.token_to_orig_map:
-                        continue
-                    # the token_to_orig_map is a structure that maps tokens to the original word in the sentence (only spans the context)
-                    # i.e. orig="the normans (norman: nourmands; french: normands [...]"
-                    # i.e.            tokens="the, norman, ##s, (, norman, :, no, ##ur, ##man, ##ds, ;, french, :, norman, ##ds"
-                    # i.e. tokens_to_orig_map="0,    1,    1,  2,   2,    2,  3,   3,    3,     3,  3,    4,   4,   5,      5"
-
-                    # no idea what token_is_max_context is used for
-                    if not feature.token_is_max_context.get(start_index, False):
-                        continue
-
-                    # answer is too long -> discard
-                    length = end_index - start_index + 1
-                    if length > max_answer_length:
-                        continue
-
-                    # store prediction
-                    prelim_predictions.append(
-                        PrelimPrediction(
-                            feature_index=feature_index,
+        best_prediction = PrelimPrediction(
+                            feature_index=example_index,
                             start_index=start_index,
                             end_index=end_index,
                             start_logit=start_logits[start_index],
                             end_logit=end_logits[end_index],
                         )
-                    )
 
-        # add the null prediction to the list of predictions
-        prelim_predictions.append(null_prediction)
+        if best_prediction.start_index != 0:
+            norm_tokens = feature.tokens[best_prediction.start_index:best_prediction.end_index+1]
+            norm_string_tokens = tokenizer.convert_tokens_to_string(norm_tokens)
 
-        # sort predictions according to the total score
-        prelim_predictions = sorted(prelim_predictions, key=lambda x: (x.start_logit + x.end_logit), reverse=True)
+            orig_doc_start = feature.token_to_orig_map[best_prediction.start_index]
+            orig_doc_end = feature.token_to_orig_map[best_prediction.end_index]
+            orig_string_tokens = example.doc_tokens[orig_doc_start: (orig_doc_end + 1)]
 
-        BestPrediction = collections.namedtuple(
-            "BestPrediction", ["text", "start_logit", "end_logit"]
-        )
+            norm_text = " ".join(norm_string_tokens.split())
+            orig_text = " ".join(orig_string_tokens)
 
-        seen_predictions = {}
-        best_predictions = []
-
-        # looping in descending score order over the preliminary predictions found for a specific feature
-        # prune the preliminary predictions to a top n_best list and convert to text
-        for pred in prelim_predictions:
-            if len(best_predictions) >= n_best:
-                break
-
-            feature = features[pred.feature_index]
-
-            # retain only non-null predictions
-            if pred.start_index > 0:
-                
-                norm_tokens = feature.tokens[pred.start_index:pred.end_index+1]
-                norm_string_tokens = tokenizer.convert_tokens_to_string(norm_tokens)
-
-                orig_doc_start = feature.token_to_orig_map[pred.start_index]
-                orig_doc_end = feature.token_to_orig_map[pred.end_index]
-                orig_string_tokens = example.doc_tokens[orig_doc_start: (orig_doc_end + 1)]
-
-                norm_text = " ".join(norm_string_tokens.split())
-                orig_text = " ".join(orig_string_tokens)
-
-                if fancy_answer:
-                    final_text = get_final_text(norm_text, orig_text, do_lower_case, language)
-                else:
-                    final_text = orig_text
-
+            if fancy_answer:
+                final_text = get_final_text(norm_text, orig_text, do_lower_case, language)
             else:
-                final_text = ""
-
-            if final_text in seen_predictions:
-                continue
-
-            seen_predictions[final_text] = True
-
-            best_predictions.append(BestPrediction(
-                text=final_text, start_logit=pred.start_logit, end_logit=pred.end_logit))
-
-        # if we didn't include the empty option in the n-best, include it
-        if "" not in seen_predictions:
-            best_predictions.append(BestPrediction(
-                text="", start_logit=null_prediction.start_logit, end_logit=null_prediction.end_logit))
-
-        # For some reason, the official code does this checks
-        if len(best_predictions) == 1:
-            best_predictions.append(BestPrediction(
-                text="", start_logit=0, end_logit=0))
-        #
-        if len(best_predictions) == 0:
-            best_predictions.append(BestPrediction(
-                text="empty", start_logit=0, end_logit=0))
-
-        # save the best non-null entry
-        best_non_null_entry = None
-
-        # iterate over the best prediction we found, convert them in a more favorable format
-        # loop in descending score order (the first is the best)
-        for entry in best_predictions:
-            if entry.text:
-                best_non_null_entry = entry
-                break
+                final_text = orig_text
+        else:
+            final_text = ""
 
         # compute the score diff as the difference between the null_score and the best-non_null score
-        score_diff = (best_non_null_entry.start_logit + best_non_null_entry.end_logit) - null_score
+        score_diff = (best_prediction.start_logit + best_prediction.end_logit) - null_score
 
         # if the score difference is below the threshold,
         # we predict our best-non_null answer
         if score_diff > null_score_diff_threshold:
             all_predictions[example.qas_id].append({
-                'answer': best_non_null_entry.text, 
-                'bert_score': float(best_non_null_entry.start_logit + best_non_null_entry.end_logit)
+                'answer': final_text, #best_prediction.text, 
+                'bert_score': float(best_prediction.start_logit + best_prediction.end_logit)
             })
-            # all_predictions[example.qas_id] = best_non_null_entry.text
 
         # otherwise we predict a null answer
         else:
@@ -280,6 +176,33 @@ def compute_predictions(
                 'answer': "", 
                 'bert_score': 0
             })
-            # all_predictions[example.qas_id] = ""
 
     return all_predictions
+
+def compute_recall(examples: List[SquadExample], num_ctx: int) -> float:
+    num_questions = len(examples) // num_ctx
+    sum_answers = 0
+    for i in range(num_questions):
+        examples_q = examples[i*num_ctx:(i+1)*num_ctx]
+
+        for ex in examples_q:
+            if ex.has_answer:
+                sum_answers += 1
+                break
+        
+    return sum_answers / num_questions
+
+
+def compute_em_k(examples: List[SquadExample], predictions: Dict[str, List[Dict[str, Union[str, float]]]]):
+    num_questions = len(predictions)
+    num_ctx = len(examples) // num_questions
+
+    sum_em_k = 0
+    for i, qas_id in enumerate(predictions.keys()):
+        pred_ans = [normalize_answer(v['answer']) for v in predictions[qas_id]]
+        ans_truth = examples[i*num_ctx].answer_text
+
+        sum_em_k += normalize_answer(ans_truth) in pred_ans
+            
+
+    return sum_em_k/num_questions

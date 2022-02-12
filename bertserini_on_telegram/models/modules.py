@@ -12,6 +12,8 @@ from transformers.data.metrics.squad_metrics import squad_evaluate
 import json
 from pprint import pprint
 
+from bertserini_on_telegram.utils.utils_squad import compute_recall, compute_em_k
+
 @MODEL_REGISTRY
 class BERTModule(LightningModule):
     """A LightningModule is a neat way to organize the code necessary to train/evaluate/inference a Torch.nn.Module.
@@ -131,6 +133,8 @@ class BERTModule(LightningModule):
                     (1 - self.hparams.mu) * predictions[qid][ctxid]['bert_score'] + \
                     (self.hparams.mu) * predictions[qid][ctxid]['pyserini_score']
 
+        em_k = compute_em_k(self.trainer.datamodule.new_examples, predictions)
+
         # sort answers for the different contexts by the total score
         # & transform prediction to feed them to squad_evaluate
         predictions = {k: sorted(v, key=lambda x: -x['total_score'])[0]['answer'] for k, v in predictions.items()}
@@ -142,6 +146,10 @@ class BERTModule(LightningModule):
         # This is mainly done to retrieve the best_f1_threshold
         answers = [e.answer_text for e in self.trainer.datamodule.new_examples]
         result = squad_evaluate(self.trainer.datamodule.examples, predictions)
+        recall = compute_recall(self.trainer.datamodule.new_examples, self.trainer.datamodule.hparams.num_contexts)
+        pprint(f"em_k: {em_k}")
+        pprint(f"recall: {recall}")
+        print(f"other metrics: ")
         pprint(result)
 
         # Save the results to filesystem, we will need the best_f1_thresh later at 
@@ -176,3 +184,5 @@ class BERTModule(LightningModule):
         scored_answers = sorted(scored_answers, key=lambda x: self.hparams.mu * x[0] + (1-self.hparams.mu) * x[1][1], reverse=True)
     
         self.answer = scored_answers[0][1][0]
+
+# TODO: Check prediction step

@@ -30,5 +30,8 @@ if __name__ == "__main__":
         answer = bert.answer
         answer, _ = at.translate(answer, src_lang='en_XX', trg_lang=langs[0])
 
-        print(f'BERT found an answer to the question! {answer}')
-        question = input("Please input your question[use empty line to exit]:")
+        if not answer or len(answer) == 0:
+            print(f'Please try changing the phrasing of your question.')
+        else:
+            print(f'BERT found an answer to the question! {answer}')    
+            question = input("Please input your question[use empty line to exit]:")

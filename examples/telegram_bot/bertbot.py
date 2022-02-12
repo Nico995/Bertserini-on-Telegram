@@ -94,10 +94,13 @@ def answer(update: Update, context: CallbackContext) -> int:
     # Predict answer
     cli.trainer.predict(bert, dm)
     answer = bert.answer
-    answer, _ = at.translate(answer, src_lang='en_XX', trg_lang=langs[0])
 
-    update.message.reply_text(answer)
-    logger.info(f'BERT found an answer to the question! "{answer}"')
+    if not answer or len(answer) == 0:
+        update.message.reply_text(f'Please try changing the phrasing of your question.')
+    else:
+        answer, _ = at.translate(answer, src_lang='en_XX', trg_lang=langs[0])
+        update.message.reply_text(answer)
+        logger.info(f'BERT found an answer to the question! "{answer}"')
 
     return ANSWER
 

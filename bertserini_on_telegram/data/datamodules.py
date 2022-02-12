@@ -19,6 +19,7 @@ from bertserini_on_telegram.utils.base import Context, Question
 from datasets import load_dataset
 
 from bertserini_on_telegram.utils.pyserini import craft_squad_examples
+from transformers.data.metrics.squad_metrics import normalize_answer
 
 
 @DATAMODULE_REGISTRY
@@ -87,6 +88,7 @@ class SQuADDataModule(LightningDataModule):
         max_seq_length: int = 387,
         threads: int = 6,
         workers: int = 12,
+        num_contexts: int = 3
     ):    
         """A DataModule standardizes the training, val, test splits, data preparation and transforms. 
         The main advantage is consistent data splits, data preparation and transforms across models.
@@ -135,9 +137,9 @@ class SQuADDataModule(LightningDataModule):
             
         """
         if stage is None or stage == "fit":
-            examples = self.processor.get_train_examples("./tmp/squad/")[:50]
+            examples = self.processor.get_train_examples("./tmp/squad/")[:10]
         elif stage == "validate":
-            examples = self.processor.get_dev_examples("./tmp/squad/")
+            examples = self.processor.get_dev_examples("./tmp/squad/")[:10]
 
         # delete the original squad context and insert 1 entry for each bertserini retrieved context
         new_examples = []
@@ -145,10 +147,16 @@ class SQuADDataModule(LightningDataModule):
         # Keep track of pyserini scores for all contexts
         for i, example in enumerate(examples):
             question = Question(example.question_text, "en")
-            contexts = self.searcher.retrieve(question, 3)
+            contexts = self.searcher.retrieve(question, self.hparams.num_contexts)
             contexts_examples = craft_squad_examples(question, contexts)
-            for j, ctx in enumerate(contexts_examples):
-                ctx.qas_id = example.qas_id
+
+            answer = example.answers[0]['text'] if example.answers else ""
+
+            for j, ctx_ex in enumerate(contexts_examples):
+                #check whether the answer exists in the context text
+                ctx_ex.has_answer = normalize_answer(answer) in normalize_answer(ctx_ex.context_text)
+                ctx_ex.answer_text = answer
+                ctx_ex.qas_id = example.qas_id
                 pyserini_scores[i].append(contexts[j].score)
 
             new_examples.extend(contexts_examples)
