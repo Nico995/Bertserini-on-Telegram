@@ -103,7 +103,7 @@ def compute_predictions(
     )
 
     # build variables to store predictions
-    all_predictions = collections.OrderedDict()
+    all_predictions = DefaultDict(lambda: [])
 
     # loop over all the examples (which are SquadExamples object directly from get_dev_samples)
     # all_examples is essentially all the data used for train/inference
