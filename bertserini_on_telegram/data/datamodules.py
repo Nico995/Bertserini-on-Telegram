@@ -137,7 +137,7 @@ class SQuADDataModule(LightningDataModule):
         if stage is None or stage == "fit":
             examples = self.processor.get_train_examples("./tmp/squad/")[:50]
         elif stage == "validate":
-            examples = self.processor.get_dev_examples("./tmp/squad/")[:50]
+            examples = self.processor.get_dev_examples("./tmp/squad/")
 
         # delete the original squad context and insert 1 entry for each bertserini retrieved context
         new_examples = []
