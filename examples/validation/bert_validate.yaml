@@ -12,13 +12,20 @@ data:
     threads: 6
     workers: 12
 
+    # gridsearch hparams
+    num_contexts: 5
+
 model:
   class_path: bertserini_on_telegram.models.modules.BERTModule
   init_args:
     model_name: *bert_name
     results_file: ./tmp/results_.json
-    mu: 0.5
     n_best: 10
+
+    # gridsearch hparams
+    mu: 0.5
+    
+    
 
 trainer:
   default_root_dir: ./logs
