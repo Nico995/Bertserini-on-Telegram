@@ -11,7 +11,7 @@ from transformers import BertTokenizer
 from bertserini_on_telegram.utils.pyserini import Searcher
 
 from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
-from transformers.data.processors.squad import SquadV2Processor
+from transformers.data.processors.squad import SquadV2Processor, SquadV1Processor
 from bertserini_on_telegram.utils import constants
 from transformers import squad_convert_examples_to_features
 import requests
@@ -118,14 +118,14 @@ class SQuADDataModule(LightningDataModule):
         
         """
         # Download the dev version of squad if does not exists already
-        if not os.path.isfile("./tmp/squad/dev-v2.0.json"):
+        if not os.path.isfile("./tmp/squad/dev-v1.1.json"):
             dataset = requests.get(
-                url='https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v2.0.json', allow_redirects=True)
+                url='https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v1.1.json', allow_redirects=True)
             os.makedirs('./tmp/squad', exist_ok=True)
-            with open('./tmp/squad/dev-v2.0.json', 'wb') as fb:
+            with open('./tmp/squad/dev-v1.1.json', 'wb') as fb:
                 fb.write(dataset.content)
 
-        self.processor = SquadV2Processor()
+        self.processor = SquadV1Processor()
 
     # fit,validate,test,predict
 
@@ -137,9 +137,10 @@ class SQuADDataModule(LightningDataModule):
             
         """
         if stage is None or stage == "fit":
-            examples = self.processor.get_train_examples("./tmp/squad/")[:10]
+            # examples = self.processor.get_train_examples("./tmp/squad/")[:100]
+            exit(-1)
         elif stage == "validate":
-            examples = self.processor.get_dev_examples("./tmp/squad/")[:10]
+            examples = self.processor.get_dev_examples("./tmp/squad/",filename='dev-v1.1.json')[:1000]
 
         # delete the original squad context and insert 1 entry for each bertserini retrieved context
         new_examples = []
@@ -150,13 +151,21 @@ class SQuADDataModule(LightningDataModule):
             contexts = self.searcher.retrieve(question, self.hparams.num_contexts)
             contexts_examples = craft_squad_examples(question, contexts)
 
-            answer = example.answers[0]['text'] if example.answers else ""
-
+            ex_answer_text = [answer['text'] for answer in example.answers]
+            ex_answers = example.answers
+            
             for j, ctx_ex in enumerate(contexts_examples):
+                
+                ctx_ex.has_answer = 0
                 #check whether the answer exists in the context text
-                ctx_ex.has_answer = normalize_answer(answer) in normalize_answer(ctx_ex.context_text)
-                ctx_ex.answer_text = answer
+                # ctx_ex.answer_text = ex_answer_text
+                for answer_text in ex_answer_text:
+                    if normalize_answer(answer_text) in normalize_answer(ctx_ex.context_text):
+                        ctx_ex.has_answer = 1
+
+                ctx_ex.answers = ex_answers
                 ctx_ex.qas_id = example.qas_id
+                ctx_ex.is_impossible = example.is_impossible
                 pyserini_scores[i].append(contexts[j].score)
 
             new_examples.extend(contexts_examples)

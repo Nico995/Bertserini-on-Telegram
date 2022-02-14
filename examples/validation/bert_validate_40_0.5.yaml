@@ -13,7 +13,7 @@ data:
     workers: 12
 
     # gridsearch hparams
-    num_contexts: 10
+    num_contexts: 40
 
 model:
   class_path: bertserini_on_telegram.models.modules.BERTModule

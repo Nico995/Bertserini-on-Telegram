@@ -1,9 +1,11 @@
+import numpy as np
 from bertserini_on_telegram.utils.io import print_ts
 from transformers.data.processors.squad import SquadResult
 from typing import Dict, List, Tuple
 from pytorch_lightning import LightningModule
 from transformers import BertTokenizer, BertForQuestionAnswering
 from pytorch_lightning.utilities.cli import MODEL_REGISTRY
+from bertserini_on_telegram.utils.utils_squad import compute_predictions_logits
 
 from transformers.data.metrics.squad_metrics import apply_no_ans_threshold, find_all_best_thresh, get_raw_scores, make_eval_dict, merge_eval
 
@@ -109,16 +111,33 @@ class BERTModule(LightningModule):
         """This hook is called after the last validation step. This is convenient if we want to gather the results of the validation.
         """
 
-        predictions = compute_predictions(
-            self.trainer.datamodule.new_examples,
-            self.trainer.datamodule.features,
-            self.all_results,
-            n_best=10,
+        # predictions = compute_predictions(
+        #     self.trainer.datamodule.new_examples,
+        #     self.trainer.datamodule.features,
+        #     self.all_results,
+        #     n_best=10,
+        #     max_answer_length=378,
+        #     do_lower_case=True,
+        #     null_score_diff_threshold=0.0,
+        #     tokenizer=self.tokenizer
+        # )
+        print('Computing predictions logits')
+        predictions = compute_predictions_logits(
+            np.array(self.trainer.datamodule.new_examples),
+            np.array(self.trainer.datamodule.features),
+            np.array(self.all_results),
+            n_best_size=10,
             max_answer_length=378,
             do_lower_case=True,
             null_score_diff_threshold=0.0,
-            tokenizer=self.tokenizer
-        )
+            tokenizer=self.tokenizer,
+            version_2_with_negative=True,
+            output_prediction_file="./tmp/out_pred", 
+            output_nbest_file="./tmp/out_nbest", 
+            output_null_log_odds_file="./tmp/out_null_log_odds", 
+            verbose_logging=False,
+            
+        )    
 
         #aggregate scores with pyserini
         
@@ -137,7 +156,7 @@ class BERTModule(LightningModule):
 
         # sort answers for the different contexts by the total score
         # & transform prediction to feed them to squad_evaluate
-        predictions = {k: sorted(v, key=lambda x: -x['total_score'])[0]['answer'] for k, v in predictions.items()}
+        predictions = {k: sorted(v, key=lambda x: -x['total_score'])[0]['text'] for k, v in predictions.items()}
         # only retain the best scoring answer
         # predictions[qid] = predictions[qid][0]
         
@@ -174,7 +193,7 @@ class BERTModule(LightningModule):
             self.all_results,
             n_best=self.hparams.n_best,
             max_answer_length=30,
-            do_lower_case=True,
+            do_lower_case=False,
             null_score_diff_threshold=self.get_best_f1_threshold(),
             tokenizer=self.tokenizer,
             language="en")
