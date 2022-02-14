@@ -45,6 +45,7 @@ class AutoTranslator:
             trg_lang = self.lang_map.get(lang_iso369, None)
 
         if 'en' in src_lang and 'en' in trg_lang:
+            print('no need to translate')
             return text, (src_lang, trg_lang)
 
         if not src_lang:

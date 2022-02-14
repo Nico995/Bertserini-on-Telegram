@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 logger.info('Welcome, logging has just started!')
 
 # build the context_retreiving object
-searcher = Searcher("enwiki-paragraphs")
+searcher = Searcher("wikipedia-dpr")
 
 # build the auto translator object
 at = AutoTranslator()
@@ -79,7 +79,6 @@ def answer(update: Update, context: CallbackContext) -> int:
 
     logger.info(f'BERT detected the language: {langs[0]}')
     print('BERT translated the question: ', question_text)
-
 
     question = Question(question_text, "en")    
     logger.info(f'User {user.first_name} asked a question: {question_text}')

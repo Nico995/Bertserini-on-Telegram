@@ -215,7 +215,10 @@ class BERTModule(LightningModule):
 
 
         # We now need to compute the aggregate scores for the answers and select the highest scoring one
-        print(f"answers: \n{sorted([v[0] for v in predictions.values()], key= lambda x: -x['total_score'])}")
-        self.answer = sorted([v[0] for v in predictions.values()], key= lambda x: -x['total_score'])[0]['text']
+        sorted_answers = sorted([v[0] for v in predictions.values()], key= lambda x: -x['total_score'])
+        best_answer = sorted_answers[0]['text']
+        
+        print(f"answers: \n{sorted_answers}")
+        self.answer = best_answer
 
 # TODO: Check prediction step

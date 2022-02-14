@@ -6,14 +6,15 @@ from pytorch_lightning.utilities.cli import LightningCLI
 
 if __name__ == "__main__":
 
-    searcher = Searcher("enwiki-paragraphs")
-    # searcher = Searcher("wikipedia-dpr")
+    # searcher = Searcher("enwiki-paragraphs")
+    searcher = Searcher("wikipedia-dpr")
     at = AutoTranslator()
 
     cli = LightningCLI(run=False, save_config_callback=None)
     bert = cli.model
         
     question = input("Please input your question[use empty line to exit]:")
+    # question = "How big is the Earth?"
 
     while question != '':
         question, langs = at.translate(question, src_lang=None, trg_lang='en_XX')
@@ -37,4 +38,5 @@ if __name__ == "__main__":
         else:
             answer, _ = at.translate(answer, src_lang='en_XX', trg_lang=langs[0])
             print(f'BERT found an answer to the question! {answer}')    
-            question = input("Please input your question[use empty line to exit]:")
+        question = input("Please input your question[use empty line to exit]:")
+        

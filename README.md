@@ -1,5 +1,7 @@
 # Bertserini-on-Telegram
 
+![schema.jpeg](schema/schema.jpeg)
+
 Bertserini-on-Telegram is a pytorch Bertserini implementation with a small utility to plug it in a Telegram bot.
 The models and dataloaders are written in PyTorchLightning, and are usable on their own, or via PyTorchLightning CLI.
 
