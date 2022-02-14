@@ -86,7 +86,7 @@ def answer(update: Update, context: CallbackContext) -> int:
 
     # Retrieve contexts
     logger.info(f'I am retreiving context from Wikipedia...')
-    contexts = searcher.retrieve(question, 20)
+    contexts = searcher.retrieve(question, 10)
     
     # Create datamodule
     dm = PredictionDataModule(question, contexts, cli.model.hparams.model_name)

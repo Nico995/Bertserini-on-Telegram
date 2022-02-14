@@ -48,6 +48,11 @@ class PredictionDataModule(LightningDataModule):
         self.tokenizer = BertTokenizer.from_pretrained(model_name)
         self.question = question
         self.contexts = contexts
+        
+        self.pyserini_scores = []
+        for context in self.contexts:
+            self.pyserini_scores.append(context.score)
+
 
     def setup(self, stage=None):
         # all examples, features and dataset are stored because
@@ -94,7 +99,7 @@ class SQuADDataModule(LightningDataModule):
         The main advantage is consistent data splits, data preparation and transforms across models.
         This allows you to share a full dataset without explaining how to download, split, transform, and process the data.
         
-        PytorchLightning DataModule implementation for squad_v2 dataset. The dataloaders output ready-to-train tensors.
+        PytorchLightning DataModule implementation for squad dataset. The dataloaders output ready-to-train tensors.
 
         Args:
             model_name (str, optional): The name of the pretrained model to use. Defaults to "rsvp-ai/bertserini-bert-base-squad".

@@ -136,11 +136,9 @@ class BERTModule(LightningModule):
             output_nbest_file="./tmp/out_nbest", 
             output_null_log_odds_file="./tmp/out_null_log_odds", 
             verbose_logging=False,
-            
         )    
 
-        #aggregate scores with pyserini
-        
+        #aggregate bert scores with pyserini
         # iterate over all the questions 
         for i, qid in enumerate(predictions.keys()):
             # iterate over all the contexts for a give question
@@ -186,22 +184,38 @@ class BERTModule(LightningModule):
         """This hook is called after the last prediction step. This is convenient if we want to gather the results of the prediction.
         """
 
-        # Answers contains the n_best candidate answers for all possible question-context (q1, c1), ..., (q1, cn) pairs
-        answers = compute_predictions(
-            self.trainer.datamodule.examples,
-            self.trainer.datamodule.features,
-            self.all_results,
-            n_best=self.hparams.n_best,
-            max_answer_length=30,
-            do_lower_case=False,
-            null_score_diff_threshold=self.get_best_f1_threshold(),
+        # Answers contains the n_best candidate answers for all possible question-context (q1, c1), ..., (q1, cn) pairs        
+        print('Computing predictions logits')
+        predictions = compute_predictions_logits(
+            np.array(self.trainer.datamodule.examples),
+            np.array(self.trainer.datamodule.features),
+            np.array(self.all_results),
+            n_best_size=10,
+            max_answer_length=378,
+            do_lower_case=True,
+            null_score_diff_threshold=0.0,
             tokenizer=self.tokenizer,
-            language="en")
+            version_2_with_negative=True,
+            output_prediction_file="./tmp/out_pred", 
+            output_nbest_file="./tmp/out_nbest", 
+            output_null_log_odds_file="./tmp/out_null_log_odds", 
+            verbose_logging=False,
+        )    
+        
+        #aggregate bert scores with pyserini
+        # iterate over all the questions 
+        for i, qid in enumerate(predictions.keys()):
+            # iterate over all the contexts for a give question
+            predictions[qid][0]['pyserini_score'] = self.trainer.datamodule.pyserini_scores[i]
+            
+            # aggregate bert score with pyserini score with parameter mu
+            predictions[qid][0]['total_score'] = \
+                (1 - self.hparams.mu) * predictions[qid][0]['bert_score'] + \
+                (self.hparams.mu) * predictions[qid][0]['pyserini_score']
+
 
         # We now need to compute the aggregate scores for the answers and select the highest scoring one
-        scored_answers = zip([ctx.score for ctx in self.trainer.datamodule.contexts], answers.values())
-        scored_answers = sorted(scored_answers, key=lambda x: self.hparams.mu * x[0] + (1-self.hparams.mu) * x[1][1], reverse=True)
-    
-        self.answer = scored_answers[0][1][0]
+        print(f"answers: \n{sorted([v[0] for v in predictions.values()], key= lambda x: -x['total_score'])}")
+        self.answer = sorted([v[0] for v in predictions.values()], key= lambda x: -x['total_score'])[0]['text']
 
 # TODO: Check prediction step

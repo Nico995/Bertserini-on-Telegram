@@ -23,15 +23,18 @@ if __name__ == "__main__":
             continue
 
         question = Question(question, "en")
-        contexts = searcher.retrieve(question, 20)
-        dm = PredictionDataModule(question, contexts, cli.model.hparams.model_name)
+        contexts = searcher.retrieve(question, 10)
         
+        # Create datamodule
+        dm = PredictionDataModule(question, contexts, cli.model.hparams.model_name)
+            
+        # Predict answer
         cli.trainer.predict(bert, dm)
         answer = bert.answer
-        answer, _ = at.translate(answer, src_lang='en_XX', trg_lang=langs[0])
 
         if not answer or len(answer) == 0:
             print(f'Please try changing the phrasing of your question.')
         else:
+            answer, _ = at.translate(answer, src_lang='en_XX', trg_lang=langs[0])
             print(f'BERT found an answer to the question! {answer}')    
             question = input("Please input your question[use empty line to exit]:")
