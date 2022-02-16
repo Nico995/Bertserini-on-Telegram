@@ -31,6 +31,9 @@ pip install bertserini-on-telegram
 
 The fastest way to learn how to use this package is by heading on to the examples folder, and have a look at the python scripts saved in there. In each example folder, there is a config.yaml file holding the run parameters, a script.py file where the actual example code is, and a runnable script.sh file that shows how to run a PytorchLightningCli script with a config file.
 
+
+### Example running command_line Q&A
+
 * install the package via pip
 * clone the repo
 * do the following:
