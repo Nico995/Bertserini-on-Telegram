@@ -29,12 +29,15 @@ pip install bertserini-on-telegram
 
 ## Usage
 
-The fastest way to learn how to use this package is by heading on tothe examples folder, and have a look at the python scripts saved in there. In each example folder, there is a config.yaml file holding the run parameters, a script.py file where the actual example code is, and a runnable script.sh file that shows how to run a PytorchLightningCli script with a config file.
+The fastest way to learn how to use this package is by heading on to the examples folder, and have a look at the python scripts saved in there. In each example folder, there is a config.yaml file holding the run parameters, a script.py file where the actual example code is, and a runnable script.sh file that shows how to run a PytorchLightningCli script with a config file.
 
-To run an example, simply
+* install the package via pip
+* clone the repo
+* do the following:
+  
 ```bash
-cd examples/<example_dir>
-./example_shell_script.sh
+cd Bertserini-on-Telegram/examples/command_line
+./run_command_line.sh
 ```
 
 
@@ -54,7 +57,7 @@ token_id: <token_id>
 
 Now just run the example as shown in the snippet below, and you are good to go :)
 ```bash
-cd examples/telegram_bot
+cd Bertserini-on-Telegram/examples/telegram_bot
 ./run_bertbot.sh
 ```
 
