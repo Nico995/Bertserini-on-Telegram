@@ -29,7 +29,8 @@ setuptools.setup(
         "datasets",
         "faiss-gpu",
         "fasttext",
-        "iso639"
+        "iso639",
+        "jsonargparse"
 
     ]
 )
