@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="bertserini_on_telegram",
-    version="1.1",
+    version="1.2",
     author="Nicola Occelli",
     author_email="nicola.occelli@studenti.polito.it",
     description="A library, based on PyTorch, that implements bertserini code.",
